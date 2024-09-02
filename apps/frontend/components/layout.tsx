@@ -19,7 +19,6 @@ export default function Layout({
 }: Props) {
   const { ready, authenticated } = usePrivy();
   const router = useRouter();
-
   useEffect(() => {
     if (ready && !authenticated) {
       router.push("/");
