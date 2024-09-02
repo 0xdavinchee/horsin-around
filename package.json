@@ -6,6 +6,7 @@
   },
   "scripts": {
     "dev": "next dev",
+    "clean": "rm -rf node_modules package-lock.json",
     "build": "next build",
     "start": "next start",
     "format": "npx prettier --write \"{__tests__,components,app,styles}/**/*.{ts,tsx,js,jsx}\"",
