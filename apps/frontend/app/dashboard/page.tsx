@@ -19,11 +19,20 @@ import {
   createPublicClient,
   createWalletClient,
   custom,
+  encodeFunctionData,
+  formatEther,
   http,
   parseEther,
 } from "viem";
 import { sepolia } from "viem/chains"; // Replace this with the chain used by your application
-import { useAccount, useBalance, useWalletClient } from "wagmi";
+import {
+  useAccount,
+  useBalance,
+  useReadContract,
+  useWalletClient,
+} from "wagmi";
+import { CONTRACT_ADDRESS } from "../../lib/constants";
+import ABI from "../../lib/ContractAABI.json";
 
 const PRIVY = "privy";
 
@@ -32,8 +41,7 @@ export default function DashboardPage() {
   const { wallets } = useWallets();
   const { address } = useAccount();
   const balance = useBalance({ address, query: { structuralSharing: false } });
-  console.log("balance", balance.data);
-  const embeddedWallet = wallets.find(
+  const privyEmbeddedWallet = wallets.find(
     (wallet) => wallet.walletClientType === PRIVY
   );
   // const account = useAccount();
@@ -41,6 +49,7 @@ export default function DashboardPage() {
   const [smartAccountAddress, setSmartAccountAddress] = useState<
     `0x${string}` | undefined
   >();
+  const [value, setValue] = useState(0);
   const [smartAccountReady, setSmartAccountReady] = useState(false);
 
   const account = useAccount();
@@ -68,8 +77,9 @@ export default function DashboardPage() {
   } = usePrivy();
 
   useEffect(() => {
-    if (embeddedWallet) setActiveWallet(embeddedWallet);
-  }, [embeddedWallet]);
+    if (privyEmbeddedWallet) setActiveWallet(privyEmbeddedWallet);
+  }, [privyEmbeddedWallet]);
+
   useEffect(() => {
     if (ready && !authenticated) {
       router.push("/");
@@ -130,30 +140,52 @@ export default function DashboardPage() {
       });
 
       const smartAccountAddress = smartAccountClient.account?.address;
-      console.log("smartAccountAddress",smartAccountAddress);
 
       setSmartAccountClient(smartAccountClient);
       setSmartAccountAddress(smartAccountAddress);
       setSmartAccountReady(true);
     };
 
-    if (embeddedWallet) createSmartWallet(embeddedWallet);
-  }, [embeddedWallet]);
-
-  console.log({ embeddedWallet });
-
-  // console.log("balancee", balance.data)
+    if (privyEmbeddedWallet) createSmartWallet(privyEmbeddedWallet);
+  }, [privyEmbeddedWallet]);
 
   const sendIt = async () => {
-    console.log("smartAccountAddress");
+    if (!smartAccountClient) return;
+
+    try {
+      const txHash = await smartAccountClient.sendTransaction({
+        to: "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+        value: parseEther("0.000069420"),
+      });
+      console.log(
+        `User operation included: https://sepolia.etherscan.io/tx/${txHash}`
+      );
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const { data: contractValue } = useReadContract({
+    address: CONTRACT_ADDRESS,
+    abi: ABI,
+    functionName: "value",
+  });
+
+  const onSetValue = async () => {
+    if (!smartAccountClient) return;
+
     const txHash = await smartAccountClient.sendTransaction({
-      to: "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
-      value: parseEther("0.000069420"),
+      account: smartAccountClient.account!,
+      chain: sepolia,
+      to: CONTRACT_ADDRESS,
+      data: encodeFunctionData({
+        abi: ABI,
+        functionName: "setValue",
+        args: [BigInt(value)],
+      }),
     });
 
-    console.log(
-      `User operation included: https://sepolia.etherscan.io/tx/${txHash}`
-    );
+    console.log(`Transaction sent: https://sepolia.etherscan.io/tx/${txHash}`);
   };
 
   const numAccounts = user?.linkedAccounts?.length || 0;
@@ -320,6 +352,35 @@ export default function DashboardPage() {
                 </button>
               )}
             </div>
+
+            <div>
+              <p>
+                Smart Account Address:{" "}
+                {smartAccountReady ? smartAccountAddress : "Not ready yet"}
+              </p>
+              <p>Embedded Wallet Address: {account.address}</p>
+              <p>
+                Wagmi Connected Wallet Address: {walletClient?.account.address}
+              </p>
+              <p>
+                Connected Wallet ETH Balance:{" "}
+                {balance.data ? formatEther(balance.data?.value) : "Loading..."}
+              </p>
+            </div>
+
+            <p>
+              Contract Value: {contractValue ? contractValue.toString() : 0}
+            </p>
+            <input
+              value={value.toString()}
+              onChange={(e) => setValue(e.target.value)}
+            />
+            <button
+              className="text-sm bg-violet-600 hover:bg-violet-700 py-2 px-4 rounded-md text-white border-none"
+              onClick={onSetValue}
+            >
+              Set Value
+            </button>
 
             <p className="mt-6 font-bold uppercase text-sm text-gray-600">
               User object
